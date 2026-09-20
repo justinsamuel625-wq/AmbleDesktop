@@ -381,4 +381,4 @@ class MainWindow(QMainWindow):
             answer = QMessageBox.question(self, "Recording active", "Stop, save, and exit?")
             if answer != QMessageBox.Yes: event.ignore(); return
             self.stop_session()
-        self.timer.stop();self.tracker.disconnect();logging.getLogger('amble').removeHandler(self._log_handler);self._log_handler.close();event.accept()
+        self.timer.stop();self.tracker.disconnect();self.pages['Analytics'].shutdown();logging.getLogger('amble').removeHandler(self._log_handler);self._log_handler.close();event.accept()

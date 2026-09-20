@@ -40,6 +40,22 @@ class AnalyticsPage(QWidget):
         self.export_button.clicked.connect(self.export_chart); self.full_button.clicked.connect(self.research_export)
         self.reload_sessions()
 
+    def shutdown(self):
+        """Release WebEngine objects before QApplication tears down Chromium."""
+        if self.chart is None:
+            return
+        chart = self.chart
+        self.chart = None
+        chart.stop()
+        page = chart.page()
+        page.setWebChannel(None)
+        chart.setPage(None)
+        self._temp.cleanup()
+
+    def closeEvent(self, event):
+        self.shutdown()
+        super().closeEvent(event)
+
     def _open_context(self, payload):
         try:
             selected = json.loads(payload); key = selected.get('key', '')
