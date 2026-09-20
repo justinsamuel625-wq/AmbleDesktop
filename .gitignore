@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.smoke-data/
+.final-smoke-data/
+.e2e-data-*/
+.hardware-*/
+dist/
+build/
+*.egg-info/
