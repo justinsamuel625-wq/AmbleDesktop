@@ -6,8 +6,8 @@ import sys
 import time
 from pathlib import Path
 
-from amble.domain import ExperimentConfig, ExperimentKind
-from amble.storage import DataStore
+from amble.core.domain import ExperimentConfig, ExperimentKind
+from amble.storage.store import DataStore
 from amble.tracking import WebcamEyeTracker
 
 
@@ -50,4 +50,3 @@ def main(root: str, camera_index: int = 0) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 0))
-

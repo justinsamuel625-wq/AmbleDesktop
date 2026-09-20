@@ -3,8 +3,8 @@ import math
 from pathlib import Path
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
-from amble.domain import EyeSample, ExperimentConfig, ExperimentKind
-from amble.storage import DataStore
+from amble.core.domain import EyeSample, ExperimentConfig, ExperimentKind
+from amble.storage.store import DataStore
 from amble.ui.main_window import MainWindow
 
 app=QApplication([]);app.setApplicationName('Amble Product QA');app.setOrganizationName('Amble Research QA')

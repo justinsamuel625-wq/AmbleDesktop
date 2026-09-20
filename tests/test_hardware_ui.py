@@ -3,6 +3,7 @@ from PySide6.QtCore import QSettings
 
 from amble.tracking.base import TrackerStatus
 from amble.ui import main_window
+from amble.ui.pages import hardware
 from amble.ui.main_window import HardwarePage, MainWindow
 
 
@@ -10,7 +11,7 @@ from amble.ui.main_window import HardwarePage, MainWindow
 def isolated_hardware_settings(monkeypatch, tmp_path):
     settings = QSettings(str(tmp_path / "hardware-settings.ini"), QSettings.IniFormat)
     settings.clear()
-    monkeypatch.setattr(main_window, "QSettings", lambda: settings)
+    monkeypatch.setattr(hardware, "QSettings", lambda: settings)
     yield settings
     settings.clear()
 

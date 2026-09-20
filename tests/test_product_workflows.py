@@ -4,19 +4,23 @@ import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QMessageBox
-from amble.domain import EyeSample, ExperimentConfig, ExperimentKind
-from amble.storage import DataStore
-from amble.research import comparisons, quality_summary, filter_rows, session_trends
-from amble.preferences import preference, restore_defaults
-from amble.session_control import ProtocolClock
-from amble.ui.explorer import RawDataPage
-from amble.ui.subjects import SubjectsPage
+from amble.analysis.research import comparisons, filter_rows, quality_summary, session_trends
+from amble.core.domain import EyeSample, ExperimentConfig, ExperimentKind
+from amble.core.preferences import preference, restore_defaults
+from amble.core.session_control import ProtocolClock
+from amble.storage.store import DataStore
 from amble.ui.main_window import MainWindow, HardwarePage
+from amble.ui.pages.raw_data import RawDataPage
+from amble.ui.pages.subjects import SubjectsPage
 
 @pytest.fixture(autouse=True)
 def preferences_scope(tmp_path, monkeypatch):
     settings=QSettings(str(tmp_path/'prefs.ini'),QSettings.IniFormat)
-    for module in ('amble.preferences','amble.ui.main_window','amble.ui.settings','amble.ui.subjects'):
+    for module in (
+        'amble.core.preferences', 'amble.ui.main_window',
+        'amble.ui.pages.settings', 'amble.ui.pages.subjects',
+        'amble.ui.pages.hardware',
+    ):
         monkeypatch.setattr(module+'.QSettings',lambda:settings)
     return settings
 

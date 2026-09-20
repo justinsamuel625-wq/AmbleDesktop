@@ -1,7 +1,7 @@
 import pytest
 
-from amble.domain import ExperimentConfig, ExperimentKind
-from amble.experiments import ExperimentRuntime
+from amble.core.domain import ExperimentConfig, ExperimentKind
+from amble.experiments.runtime import ExperimentRuntime
 
 
 @pytest.mark.parametrize("trajectory", ["horizontal", "vertical", "circular", "sinusoidal"])
@@ -17,4 +17,3 @@ def test_pursuit_targets_remain_on_screen(trajectory):
 def test_fixation_target_is_stationary():
     runtime = ExperimentRuntime(ExperimentConfig("fix", ExperimentKind.FIXATION))
     assert runtime.state_at(0, "pre").x == runtime.state_at(9, "pre").x == .5
-

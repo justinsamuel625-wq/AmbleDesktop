@@ -2,8 +2,8 @@ import json
 
 import pandas as pd
 
-from amble.domain import EyeSample, ExperimentConfig, ExperimentKind
-from amble.storage import DataStore
+from amble.core.domain import EyeSample, ExperimentConfig, ExperimentKind
+from amble.storage.store import DataStore
 
 
 def test_raw_rows_survive_csv_and_parquet_finalization(tmp_path):
