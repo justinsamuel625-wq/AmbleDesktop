@@ -1,21 +1,43 @@
 from __future__ import annotations
 
 import json
-import math
 import os
-import sys
 import time
-from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 
-from amble.domain import EyeSample
-from amble.quality import (
+from amble.analysis.quality import (
     EyeEvidence, EyeOpenness, MeasurementQuality, QualityThresholds,
     TemporalQualityWindow, compose_quality, eye_aspect_ratio,
 )
+from amble.core.domain import EyeSample
 from amble.tracking.base import EyeTracker, TrackerStatus
+from amble.tracking.camera import (
+    MODEL_PATH,
+    CameraError,
+    CameraFrameReadError,
+    CameraInfo,
+    CameraOpenError,
+    CascadeLoadError,
+    LandmarkConfigurationError,
+    OpenCVConfigurationError,
+    OpenCVDiagnostics,
+    backend_candidates,
+    open_camera,
+    validate_environment,
+)
+from amble.tracking.webcam_helpers import (
+    LEFT_EAR,
+    LEFT_EYE_OUTLINE,
+    LEFT_IRIS,
+    RIGHT_EAR,
+    RIGHT_EYE_OUTLINE,
+    RIGHT_IRIS,
+    blendshape_map,
+    crop_evidence,
+    landmark_points,
+    pose,
+)
 
 os.environ.setdefault("MEDIAPIPE_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("GLOG_minloglevel", "2")
@@ -37,103 +59,23 @@ else:
     _MEDIAPIPE_IMPORT_ERROR = None
 
 
-class CameraError(RuntimeError):
-    """Base class for explicit acquisition failures shown in the Hardware UI."""
-
-
-class OpenCVConfigurationError(CameraError): pass
-class LandmarkConfigurationError(CameraError): pass
-class CascadeLoadError(CameraError): pass
-class CameraOpenError(CameraError): pass
-class CameraFrameReadError(CameraError): pass
-
-
-@dataclass(frozen=True, slots=True)
-class OpenCVDiagnostics:
-    python_executable: str
-    module_path: str
-    version: str
-    cascade_classifier_available: bool
-    video_capture_available: bool
-    haar_root: str
-    face_cascade_loaded: bool
-    eye_cascade_loaded: bool
-    landmark_backend: str
-    landmark_model_path: str
-
-
-@dataclass(frozen=True, slots=True)
-class CameraInfo:
-    index: int
-    name: str
-    backend: str
-    resolution: tuple[int, int]
-    frame_read_success: bool
-
-
-MODEL_PATH = Path(__file__).resolve().parents[1] / "assets" / "face_landmarker.task"
-
-# MediaPipe Face Landmarker indices. Naming follows the subject's anatomical left/right.
-LEFT_EAR = (362, 385, 387, 263, 373, 380)
-RIGHT_EAR = (33, 160, 158, 133, 153, 144)
-LEFT_EYE_OUTLINE = (362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398)
-RIGHT_EYE_OUTLINE = (33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246)
-LEFT_IRIS = (473, 474, 475, 476, 477)
-RIGHT_IRIS = (468, 469, 470, 471, 472)
-
-
 def validate_opencv() -> OpenCVDiagnostics:
-    if cv2 is None:
-        detail = f" ({_CV2_IMPORT_ERROR})" if _CV2_IMPORT_ERROR else ""
-        raise OpenCVConfigurationError("OpenCV could not be imported from the project .venv" + detail)
-    required = ["CascadeClassifier", "VideoCapture", "cvtColor", "data"]
-    missing = [name for name in required if not hasattr(cv2, name)]
-    if missing:
-        raise OpenCVConfigurationError(
-            f"Incompatible OpenCV {getattr(cv2, '__version__', 'unknown')} at {getattr(cv2, '__file__', 'unknown')}. "
-            f"Missing required API: {', '.join(missing)}. Amble requires opencv-contrib-python>=4.14,<5."
-        )
-    root = Path(cv2.data.haarcascades)
-    face_path = root / "haarcascade_frontalface_default.xml"
-    eye_path = root / "haarcascade_eye_tree_eyeglasses.xml"
-    missing_files = [str(path) for path in (face_path, eye_path) if not path.is_file()]
-    if missing_files: raise CascadeLoadError("OpenCV Haar cascade file(s) missing: " + ", ".join(missing_files))
-    face = cv2.CascadeClassifier(str(face_path)); eyes = cv2.CascadeClassifier(str(eye_path))
-    if face.empty() or eyes.empty(): raise CascadeLoadError(f"OpenCV cascade failed to load from {root}")
-    if mp is None:
-        raise LandmarkConfigurationError(f"MediaPipe could not be imported: {_MEDIAPIPE_IMPORT_ERROR}")
-    if not MODEL_PATH.is_file():
-        raise LandmarkConfigurationError(f"MediaPipe Face Landmarker model is missing: {MODEL_PATH}")
-    return OpenCVDiagnostics(
-        sys.executable, str(Path(cv2.__file__).resolve()), str(cv2.__version__), True, True,
-        str(root.resolve()), True, True, f"MediaPipe Face Landmarker {mp.__version__}", str(MODEL_PATH),
+    return validate_environment(
+        cv2,
+        mp,
+        MODEL_PATH,
+        _CV2_IMPORT_ERROR,
+        _MEDIAPIPE_IMPORT_ERROR,
     )
 
 
 def _backend_candidates() -> list[tuple[str, int]]:
-    candidates: list[tuple[str, int]] = []
-    if os.name == "nt": candidates.extend([("MSMF", cv2.CAP_MSMF), ("DirectShow", cv2.CAP_DSHOW)])
-    candidates.append(("Auto", cv2.CAP_ANY))
-    unique, seen = [], set()
-    for item in candidates:
-        if item[1] not in seen: unique.append(item); seen.add(item[1])
-    return unique
+    return backend_candidates(cv2)
 
 
 def _open_camera(index: int):
-    validate_opencv(); failures: list[str] = []
-    for backend_name, backend_id in _backend_candidates():
-        cap = cv2.VideoCapture(index, backend_id)
-        if not cap.isOpened(): failures.append(f"{backend_name}: could not open"); cap.release(); continue
-        ok, frame = cap.read()
-        if ok and frame is not None and frame.size:
-            actual = cap.getBackendName() if hasattr(cap, "getBackendName") else backend_name
-            return cap, actual, frame
-        failures.append(f"{backend_name}: opened but frame read failed"); cap.release()
-    raise CameraOpenError(
-        f"Camera index {index} is unavailable ({'; '.join(failures) or 'no backend available'}). "
-        "Check Windows camera privacy, close other camera applications, and scan again."
-    )
+    validate_opencv()
+    return open_camera(cv2, index, _backend_candidates())
 
 
 def enumerate_cameras(max_devices: int = 4) -> list[CameraInfo]:
@@ -147,43 +89,19 @@ def enumerate_cameras(max_devices: int = 4) -> list[CameraInfo]:
 
 
 def _landmark_points(landmarks, indices: tuple[int, ...], width: int, height: int) -> list[tuple[float, float]]:
-    if not landmarks or max(indices) >= len(landmarks): return []
-    return [(landmarks[index].x * width, landmarks[index].y * height) for index in indices]
+    return landmark_points(landmarks, indices, width, height)
 
 
 def _crop_evidence(gray: np.ndarray, points: list[tuple[float, float]], ear: float | None, blink: float | None) -> EyeEvidence:
-    height, width = gray.shape[:2]
-    if not points: return EyeEvidence()
-    xs, ys = np.array([p[0] for p in points]), np.array([p[1] for p in points])
-    eye_width, eye_height = float(xs.max() - xs.min()), float(ys.max() - ys.min())
-    pad_x, pad_y = max(3, int(eye_width * .18)), max(3, int(max(eye_height, 8) * .45))
-    x1, x2 = max(0, int(xs.min()) - pad_x), min(width, int(xs.max()) + pad_x + 1)
-    y1, y2 = max(0, int(ys.min()) - pad_y), min(height, int(ys.max()) + pad_y + 1)
-    crop = gray[y1:y2, x1:x2]
-    sharpness = float(cv2.Laplacian(crop, cv2.CV_64F).var()) if crop.size >= 25 else 0.0
-    brightness = float(crop.mean()) if crop.size else 0.0
-    dark = float(np.mean(crop <= 20)) if crop.size else 1.0
-    bright = float(np.mean(crop >= 245)) if crop.size else 1.0
-    edge_safe = xs.min() > width * .015 and xs.max() < width * .985 and ys.min() > height * .015 and ys.max() < height * .985
-    geometry = eye_width >= 8 and eye_height >= 1 and eye_width / max(eye_height, 1) < 15
-    return EyeEvidence(True, ear, blink, eye_width, eye_height, sharpness, brightness, dark, bright, edge_safe, geometry)
+    return crop_evidence(cv2, gray, points, ear, blink)
 
 
 def _blendshape_map(result) -> dict[str, float]:
-    if not getattr(result, "face_blendshapes", None): return {}
-    return {item.category_name: float(item.score) for item in result.face_blendshapes[0]}
+    return blendshape_map(result)
 
 
 def _pose(result) -> tuple[float | None, float | None, float | None]:
-    matrices = getattr(result, "facial_transformation_matrixes", None)
-    if not matrices: return None, None, None
-    matrix = np.asarray(matrices[0], dtype=float)
-    if matrix.shape[0] < 3 or matrix.shape[1] < 3: return None, None, None
-    try:
-        angles = cv2.RQDecomp3x3(matrix[:3, :3])[0]
-        return float(angles[1]), float(angles[0]), float(angles[2])  # yaw, pitch, roll
-    except cv2.error:
-        return None, None, None
+    return pose(cv2, result)
 
 
 class WebcamEyeTracker(EyeTracker):
