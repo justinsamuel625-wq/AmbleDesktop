@@ -5,12 +5,12 @@ import json
 import platform
 import sqlite3
 import sys
-import threading
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from amble import __version__
 from amble.core.domain import CalibrationResult, ExperimentConfig, validate_subject_identifier
@@ -33,15 +33,19 @@ class DataStore:
         self.sessions_dir = self.root / "sessions"
         self.sessions_dir.mkdir(exist_ok=True)
         self.db_path = self.root / "amble.sqlite3"
-        self._local = threading.local()
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._connect() as conn:
