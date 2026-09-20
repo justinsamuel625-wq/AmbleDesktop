@@ -4,6 +4,29 @@ Amble Research is a professional desktop research prototype for timestamped bino
 
 Version 0.1 includes a desktop shell, explicit camera access, device selection and preview, replaceable tracker interfaces, nine-point calibration quality reporting, fixation/smooth-pursuit/vergence-proxy/external near–far protocols, pre/intervention/post phases, immediate raw recording, event markers, physical-distance keys, quality-gated metrics, Plotly analytics, raw-row exploration, and structured research exports.
 
+## Repository architecture
+
+Application code uses a `src` layout with responsibility-based packages:
+
+```text
+src/amble/
+├── core/          # Domain records, validated preferences, protocol clock
+├── experiments/   # Built-in definitions and pure experiment runtime
+├── analysis/      # Metrics, quality scoring, persisted-session research views
+├── storage/       # SQLite store, session recorder, artifact exports
+├── tracking/      # Tracker interfaces, backends, camera and landmark helpers
+├── ui/
+│   ├── main_window.py  # Navigation and session coordination
+│   ├── pages/          # One module per application page
+│   └── components/     # Reusable focused Qt widgets
+└── assets/        # Packaged runtime models
+```
+
+Legacy imports such as `amble.domain`, `amble.quality`, `amble.research`,
+`amble.session_control`, and the former `amble.ui.*` page/widget modules remain
+as small compatibility aliases. New code should use the responsibility-based
+paths documented in [the development guide](docs/DEVELOPMENT.md).
+
 ## Install and run
 
 Python 3.11–3.14 is supported. From PowerShell:

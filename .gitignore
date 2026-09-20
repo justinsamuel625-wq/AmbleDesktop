@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest-*/
+.test-*/
 .smoke-data/
 .final-smoke-data/
 .e2e-data-*/

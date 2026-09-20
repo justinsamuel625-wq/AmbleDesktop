@@ -1,70 +1,70 @@
 # Amble Development Guide
 
-This document defines where new code should live as Amble grows.
-
 ## Repository layout
 
 ```text
 AmbleDesktop/
-├── .github/
-│   └── workflows/        # CI and repository automation
-├── docs/                 # Architecture, metrics, quality, and developer docs
-├── scripts/              # Manual validation and developer utility scripts
-├── src/
-│   └── amble/
-│       ├── app.py        # Application entry point
-│       ├── analysis.py   # Research analysis logic
-│       ├── domain.py     # Core domain models
-│       ├── experiments.py
-│       ├── preferences.py
-│       ├── quality.py
-│       ├── research.py
-│       ├── session_control.py
-│       ├── storage.py
-│       ├── assets/       # Packaged runtime assets
-│       ├── tracking/     # Eye-tracker backends and interfaces
-│       └── ui/           # PySide6 desktop UI
-└── tests/                # Automated tests
+|-- .github/workflows/        # CI
+|-- docs/                     # Architecture and measurement documentation
+|-- scripts/                  # Manual validation utilities
+|-- src/amble/
+|   |-- core/                 # Domain, preferences, protocol clock
+|   |-- experiments/          # Definitions and pure runtime
+|   |-- analysis/             # Metrics, quality, research queries
+|   |-- storage/              # Store, recorder, exports
+|   |-- tracking/             # Interfaces, adapters, webcam helpers
+|   |-- ui/
+|   |   |-- main_window.py    # Assembly and coordination only
+|   |   |-- pages/            # One module per screen
+|   |   +-- components/       # Reusable focused widgets
+|   +-- assets/               # Packaged runtime assets
++-- tests/                    # Automated regression tests
 ```
 
-## Placement rules
+## Where new work belongs
 
-- Put application code under `src/amble/`, never at repository root.
-- Put tracker integrations under `src/amble/tracking/`.
-- Put Qt/PySide user-interface code under `src/amble/ui/`.
-- Put reusable research calculations outside the UI layer.
-- Put manual diagnostic or validation programs in `scripts/`.
-- Put automated regression tests in `tests/`.
-- Put architecture and measurement documentation in `docs/`.
-- Do not commit generated research sessions, virtual environments, caches, build artifacts, or local hardware test data.
+- Add domain records, enums, validation, or cross-cutting settings under
+  `core/`.
+- Add experiment presets in `experiments/definitions.py`; add pure stimulus
+  behavior in `experiments/runtime.py`.
+- Add mathematical metrics in `analysis/metrics.py`, quality evidence/scoring
+  in `analysis/quality.py`, and persisted-session comparisons in
+  `analysis/research.py`.
+- Add metadata/index operations in `storage/store.py`, acquisition artifact
+  logic in `storage/recorder.py`, and outward copies/bundles in
+  `storage/exports.py`.
+- Add tracker implementations under `tracking/`. Keep camera discovery and
+  dependency diagnostics in `tracking/camera.py`; keep landmark/image geometry
+  helpers in `tracking/webcam_helpers.py`.
+- Add a screen as one module under `ui/pages/`. Add a reusable visual primitive
+  under `ui/components/`. Keep `ui/main_window.py` focused on assembly,
+  navigation, signal wiring, and active-session coordination.
 
-## Refactoring direction
+Compatibility modules at the former import paths are intentionally tiny. Do
+not put new behavior into them, and do not duplicate implementations there.
 
-The current package is intentionally being refactored incrementally rather than through a large one-time move.
+## Development checks
 
-Priority candidates:
-
-1. `ui/main_window.py` — split page-specific UI and controllers as responsibilities become clearer.
-2. `tracking/webcam.py` — separate camera acquisition, landmark processing, and frame/quality helpers if growth continues.
-3. `storage.py` — separate persistence/indexing from session artifact/export concerns.
-4. `analysis.py` and `quality.py` — keep research calculations independent from UI and hardware code.
-
-Refactors should preserve existing public imports where practical and should include matching test updates.
-
-## Before opening a pull request
-
-Run:
+Install and run the full automated suite:
 
 ```powershell
 python -m pip install -e ".[dev]"
-pytest
+$env:QT_QPA_PLATFORM = "offscreen"
+$env:QTWEBENGINE_CHROMIUM_FLAGS = "--disable-gpu"
+python -m compileall -q src tests scripts
+python -m pytest
 ```
 
-For UI-only smoke testing:
+Safe simulator validation:
 
 ```powershell
-$env:QT_QPA_PLATFORM = "offscreen"
-pytest
+python scripts/experiment_workflow_check.py
 ```
 
-Hardware scripts in `scripts/` are supplemental checks and should not replace automated tests.
+The hardware scripts under `scripts/` are supplemental. Run them only when a
+camera is available, and document unavailable or exclusively locked hardware
+instead of treating it as an automated-test failure.
+
+GitHub Actions performs editable installation, compilation, and the complete
+test suite for every push and pull request.
+
