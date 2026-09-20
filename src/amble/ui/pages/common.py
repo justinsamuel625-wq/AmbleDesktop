@@ -24,4 +24,3 @@ def heading(title: str, subtitle: str = "") -> tuple[QVBoxLayout, QWidget]:
 
 
 __all__ = ["DISCLAIMER", "LOGGER", "heading"]
-

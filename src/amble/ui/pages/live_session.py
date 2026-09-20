@@ -51,4 +51,3 @@ class LivePage(QWidget):
 
 
 __all__ = ["LivePage"]
-

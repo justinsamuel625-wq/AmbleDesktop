@@ -382,5 +382,3 @@ class MainWindow(QMainWindow):
             if answer != QMessageBox.Yes: event.ignore(); return
             self.stop_session()
         self.timer.stop();self.tracker.disconnect();logging.getLogger('amble').removeHandler(self._log_handler);self._log_handler.close();event.accept()
-
-

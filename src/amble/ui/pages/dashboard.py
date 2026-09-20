@@ -42,4 +42,3 @@ class DashboardPage(QWidget):
 
 
 __all__ = ["DashboardPage"]
-

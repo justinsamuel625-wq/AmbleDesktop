@@ -99,4 +99,3 @@ class NewExperimentPage(QWidget):
 
 
 __all__ = ["NewExperimentPage"]
-

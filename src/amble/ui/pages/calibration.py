@@ -59,4 +59,3 @@ class CalibrationPage(QWidget):
 
 
 __all__ = ["CalibrationPage"]
-

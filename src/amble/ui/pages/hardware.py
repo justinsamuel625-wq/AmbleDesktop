@@ -318,4 +318,3 @@ class HardwarePage(QWidget):
 
 
 __all__ = ["HardwarePage"]
-
