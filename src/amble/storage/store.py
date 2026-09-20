@@ -3,29 +3,22 @@ from __future__ import annotations
 import csv
 import json
 import platform
-import shutil
 import sqlite3
 import sys
-import threading
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from amble import __version__
-from amble.domain import CalibrationResult, EyeSample, ExperimentConfig, RAW_COLUMNS, validate_subject_identifier
+from amble.core.domain import CalibrationResult, ExperimentConfig, validate_subject_identifier
 
 try:
     import pandas as pd
 except ImportError:  # pragma: no cover
     pd = None
-
-try:
-    import cv2
-except ImportError:  # pragma: no cover
-    cv2 = None
-
 
 def utc_now() -> str:
     return datetime.now(UTC).isoformat()
@@ -40,15 +33,19 @@ class DataStore:
         self.sessions_dir = self.root / "sessions"
         self.sessions_dir.mkdir(exist_ok=True)
         self.db_path = self.root / "amble.sqlite3"
-        self._local = threading.local()
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._connect() as conn:
@@ -149,6 +146,8 @@ class DataStore:
                 (session_id, subject_id, metadata["created_at"], config.kind.value, tracker_type,
                  str(session_dir), json.dumps(config.to_dict()), calibration_json, __version__),
             )
+        from amble.storage.recorder import SessionRecorder
+
         return SessionRecorder(self, session_id, session_dir, video_enabled=video_enabled)
 
     def list_sessions(self) -> list[dict[str, Any]]:
@@ -248,101 +247,6 @@ class DataStore:
             )]
 
     def research_export(self, session_id: str, destination: str | Path) -> Path:
-        session = self.session(session_id)
-        if not session:
-            raise KeyError(session_id)
-        target = Path(destination) / session_id
-        if target.exists():
-            target = Path(destination) / f"{session_id}_export"
-        shutil.copytree(session["session_dir"], target)
-        return target
+        from amble.storage.exports import export_session
 
-
-class SessionRecorder:
-    """Append raw samples immediately; convert without changing row identity at close."""
-
-    def __init__(self, store: DataStore, session_id: str, session_dir: Path, video_enabled: bool = False) -> None:
-        self.store = store
-        self.session_id = session_id
-        self.session_dir = session_dir
-        self.csv_path = session_dir / "raw_eye_tracking.csv"
-        self.events_path = session_dir / "events.csv"
-        self._file = self.csv_path.open("w", newline="", encoding="utf-8")
-        self._writer = csv.DictWriter(self._file, fieldnames=RAW_COLUMNS, extrasaction="ignore")
-        self._writer.writeheader()
-        self._events = self.events_path.open("w", newline="", encoding="utf-8")
-        self._event_writer = csv.DictWriter(self._events, fieldnames=["timestamp_ns", "event", "phase", "payload_json"])
-        self._event_writer.writeheader()
-        self.sample_count = 0
-        self.valid_count = 0
-        self.closed = False
-        self.video_enabled = video_enabled
-        self._video_writer = None
-
-    def append(self, sample: EyeSample) -> None:
-        if self.closed:
-            raise RuntimeError("Recorder is closed")
-        sample.session_id = self.session_id
-        self._writer.writerow(sample.to_record())
-        self.sample_count += 1
-        self.valid_count += int(sample.valid)
-        if self.sample_count % 30 == 0:
-            self._file.flush()
-
-    def event(self, timestamp_ns: int, event: str, phase: str, payload: dict[str, Any] | None = None) -> None:
-        self._event_writer.writerow({
-            "timestamp_ns": timestamp_ns, "event": event, "phase": phase,
-            "payload_json": json.dumps(payload or {}, separators=(",", ":")),
-        })
-        self._events.flush()
-
-    def append_video_frame(self, frame, fps: float = 30.0) -> None:
-        """Record frames only after the researcher explicitly opts in."""
-        if not self.video_enabled or cv2 is None or frame is None:
-            return
-        if self._video_writer is None:
-            height, width = frame.shape[:2]
-            codec = cv2.VideoWriter_fourcc(*"mp4v")
-            self._video_writer = cv2.VideoWriter(
-                str(self.session_dir / "camera_video.mp4"), codec, max(1.0, float(fps)), (width, height)
-            )
-            if not self._video_writer.isOpened():
-                self._video_writer.release()
-                self._video_writer = None
-                raise RuntimeError("Camera video file could not be opened for recording")
-        self._video_writer.write(frame)
-
-    def close(self, state: str = 'complete') -> Path:
-        if state not in {'complete', 'aborted'}: raise ValueError('Invalid final session state')
-        if self.closed:
-            return self.session_dir
-        self._file.flush(); self._file.close()
-        self._events.flush(); self._events.close()
-        if self._video_writer is not None:
-            self._video_writer.release()
-            self._video_writer = None
-        parquet_written = False
-        if pd is not None:
-            try:
-                frame = pd.read_csv(self.csv_path)
-                frame.to_parquet(self.session_dir / "raw_eye_tracking.parquet", index=False)
-                parquet_written = True
-            except (ImportError, ValueError):
-                parquet_written = False
-        with self.store._connect() as conn:
-            conn.execute(
-                """UPDATE sessions SET ended_at=?, state=?, sample_count=?,
-                   valid_sample_count=? WHERE session_id=?""",
-                (utc_now(), state, self.sample_count, self.valid_count, self.session_id),
-            )
-        metadata_path = self.session_dir / "metadata.json"
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        metadata["ended_at"] = utc_now()
-        metadata['state'] = state
-        metadata["sample_count"] = self.sample_count
-        metadata["valid_sample_count"] = self.valid_count
-        metadata["formats"] = {"raw_csv": True, "raw_parquet": parquet_written}
-        metadata["formats"]["camera_video"] = bool(self.video_enabled and (self.session_dir / "camera_video.mp4").exists())
-        metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-        self.closed = True
-        return self.session_dir
+        return export_session(self, session_id, destination)

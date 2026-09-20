@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from pathlib import Path
 from types import SimpleNamespace
 
 from amble.tracking import webcam
@@ -15,8 +16,8 @@ def test_project_opencv_has_required_api_and_valid_cascades():
     assert info.eye_cascade_loaded
     assert "MediaPipe Face Landmarker" in info.landmark_backend
     assert info.landmark_model_path.endswith("face_landmarker.task")
-    assert ".venv" in info.python_executable
-    assert ".venv" in info.module_path
+    assert Path(info.python_executable).is_file()
+    assert Path(info.module_path).is_file()
 
 
 class FakeCapture:

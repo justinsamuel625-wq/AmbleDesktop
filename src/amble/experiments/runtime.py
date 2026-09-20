@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from amble.domain import ExperimentConfig, ExperimentKind, PursuitTrajectory
+from amble.core.domain import ExperimentConfig, ExperimentKind, PursuitTrajectory
 
 
 @dataclass(slots=True)
@@ -47,11 +47,3 @@ class ExperimentRuntime:
         else:
             x, y = 0.5, 0.5
         return StimulusState(x=x, y=y, phase=phase, finished=finished)
-
-
-DEFAULT_EXPERIMENTS = {
-    ExperimentKind.FIXATION: ExperimentConfig("Fixation Stability", ExperimentKind.FIXATION, duration_s=10),
-    ExperimentKind.PURSUIT: ExperimentConfig("Smooth Pursuit", ExperimentKind.PURSUIT, duration_s=20),
-    ExperimentKind.VERGENCE_PROXY: ExperimentConfig("Screen Vergence Proxy", ExperimentKind.VERGENCE_PROXY, duration_s=20, speed_hz=.15, amplitude=.12),
-    ExperimentKind.EXTERNAL_NEAR_FAR: ExperimentConfig("External Near–Far", ExperimentKind.EXTERNAL_NEAR_FAR, duration_s=30),
-}

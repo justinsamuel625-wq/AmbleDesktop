@@ -1,6 +1,6 @@
 import pytest
 
-from amble.quality import (
+from amble.analysis.quality import (
     DistanceQuality, EyeEvidence, EyeOpenness, QualityThresholds,
     TemporalQualityWindow, classify_openness, compose_quality,
     distance_quality, eye_aspect_ratio,

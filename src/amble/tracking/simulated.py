@@ -4,7 +4,7 @@ import math
 import random
 import time
 
-from amble.domain import EyeSample
+from amble.core.domain import EyeSample
 from amble.tracking.base import EyeTracker, TrackerStatus
 
 

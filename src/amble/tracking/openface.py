@@ -8,7 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from amble.domain import EyeSample
+from amble.core.domain import EyeSample
 from amble.tracking.base import EyeTracker, TrackerStatus
 
 
@@ -141,4 +141,3 @@ class OpenFaceEyeTracker(EyeTracker):
             fps=self._fps, both_eyes_detected=bool(self._last and self._last.valid), confidence=confidence,
             message="OpenFace gaze-vector projection; calibration required; not a clinical measurement",
         )
-

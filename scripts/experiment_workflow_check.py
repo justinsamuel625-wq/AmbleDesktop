@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from amble.domain import ExperimentKind, PursuitTrajectory
+from amble.core.domain import ExperimentKind, PursuitTrajectory
 from amble.ui.main_window import MainWindow
 
 

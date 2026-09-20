@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from amble.analysis import analyze_session, bcea, drift_rate, pursuit_gain, pursuit_lag_ms
+from amble.analysis.metrics import analyze_session, bcea, drift_rate, pursuit_gain, pursuit_lag_ms
 
 
 def sample_frame(n=120, noise=0.01):
@@ -58,4 +58,3 @@ def test_drift_rate_uses_elapsed_time():
     x = np.r_[np.zeros(50), np.ones(50)]
     y = np.zeros(100)
     assert drift_rate(x, y, 2.0) == .5
-

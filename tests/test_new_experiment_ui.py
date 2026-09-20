@@ -3,8 +3,8 @@ import json
 import pytest
 from PySide6.QtCore import Qt
 
-from amble.domain import ExperimentConfig, ExperimentKind, PursuitTrajectory
-from amble.experiments import ExperimentRuntime
+from amble.core.domain import ExperimentConfig, ExperimentKind, PursuitTrajectory
+from amble.experiments.runtime import ExperimentRuntime
 from amble.ui.main_window import MainWindow, NewExperimentPage
 
 
@@ -88,4 +88,3 @@ def test_convergence_config_validation_is_intentional():
     for elapsed in (0, 1, 2, 5):
         state = runtime.state_at(elapsed, "pre")
         assert 0 <= state.x <= 1 and state.y == .5
-

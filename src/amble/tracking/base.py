@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from amble.domain import EyeSample
+from amble.core.domain import EyeSample
 
 
 @dataclass(slots=True)
